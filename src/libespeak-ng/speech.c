@@ -445,8 +445,11 @@ static espeak_ng_STATUS Synthesize(unsigned int unique_identifier, const void *t
 			return status;
 	}
 
-	if (p_decoder == NULL)
+	if (p_decoder == NULL) {
 		p_decoder = create_text_decoder();
+		if (p_decoder == NULL)
+			return ENOMEM;
+	}
 
 	status = text_decoder_decode_string_multibyte(p_decoder, text, translator->encoding, flags);
 	if (status != ENS_OK)
