@@ -34,6 +34,9 @@ efi_objects += $(BUILD)/LzmaDec.o
 endif
 voice_names := en_dict phondata phonindex phontab intonations lang/gmw/en lang/gmw/en-US
 voice_files := $(addprefix $(VOICE_DATA)/,$(voice_names))
+voice_sources := $(wildcard $(ESPEAK)/dictsource/en_*) \
+	$(ESPEAK)/espeak-ng-data/lang/gmw/en $(ESPEAK)/espeak-ng-data/lang/gmw/en-US \
+	$(shell find "$(ESPEAK)/phsource" -type f ! -name compile_prog_log)
 
 .PHONY: all speech-driver driver-test
 all: $(BUILD)/$(PE_NAME)
@@ -57,7 +60,7 @@ $(BUILD)/host/espeak-ng: $(ESPEAK)/src/espeak-ng.c $(PORT)/config.h $(PORT)/Make
 
 $(BUILD)/data/en_dict $(BUILD)/data/phondata $(BUILD)/data/phonindex \
 $(BUILD)/data/phontab $(BUILD)/data/intonations $(BUILD)/data/lang/gmw/en \
-$(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng
+$(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng $(voice_sources)
 	mkdir -p "$(BUILD)/data/lang/gmw"
 	ln -sfn "$(ESPEAK)/phsource" "$(BUILD)/phsource"
 	cp "$(ESPEAK)/espeak-ng-data/lang/gmw/en" "$(ESPEAK)/espeak-ng-data/lang/gmw/en-US" \

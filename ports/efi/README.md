@@ -74,15 +74,12 @@ directory for the VM image and generated files.
 
 ```sh
 ports/efi/test-ovmf.sh ../build/Speech.efi ../test-english
-ports/efi/test-ovmf.sh ../build/Speech.efi ../test-second-input \
-	'Power on. Open the café USB recovery entry. Press F twelve.'
-cmp ../test-english/FIXED.WAV ../test-second-input/FIXED.WAV
 ```
 
-The harness checks the EFI success result, WAV framing, non-silence, identical
-left and right samples, and a distinct digest for each utterance. The fixed
-utterance should match across both boots, while the runtime utterances
-should differ.
+The harness checks the EFI success result, WAV framing, non-silence, and
+identical left and right samples. It boots with two runtime inputs, then
+checks that the fixed WAVs match and the runtime WAVs differ. Pass text
+as a third argument to test a single input.
 
 ## edIIe boot-services driver
 
@@ -105,11 +102,12 @@ the protocol and releases its allocations. The allocations use boot-services
 memory, which the OS can reclaim after ExitBootServices.
 
 The driver rejects a second synthesis request while a call is active. It
-emits up to 1,024 PCM frames per callback and stops on any sink error,
-returning that status to the caller. Requests are limited to the
+emits up to 1,024 PCM frames per callback. Any sink error ends synthesis
+and passes through to the caller. A sink warning is reported once the
+utterance completes. Requests are limited to the
 `SPEECH_MAX_TEXT_BYTES` stated in the shared protocol and to 30 seconds of PCM.
-A call that reaches the output limit returns `EFI_BAD_BUFFER_SIZE` even if
-the sink already received fragments.
+A call that reaches the output limit delivers its final fragment and
+returns `EFI_BAD_BUFFER_SIZE` unless the sink itself returns an error.
 
 ## Size
 

@@ -28,6 +28,20 @@ static EFI_STATUS EFIAPI record(void *context, const INT16 *samples, UINTN frame
 	return EFI_SUCCESS;
 }
 
+static EFI_STATUS EFIAPI record_warning(void *context, const INT16 *samples, UINTN frames)
+{
+	EFI_STATUS status = record(context, samples, frames);
+	return status == EFI_SUCCESS ? EFI_WARN_UNKNOWN_GLYPH : status;
+}
+
+static EFI_STATUS EFIAPI record_to_limit(void *context, const INT16 *samples, UINTN frames)
+{
+	(void)samples;
+	UINTN *total = context;
+	*total += frames;
+	return *total == (UINTN)PCM_RATE * 30 ? EFI_BUFFER_TOO_SMALL : EFI_SUCCESS;
+}
+
 static EFI_STATUS EFIAPI interrupt(void *context, const INT16 *samples, UINTN frames)
 {
 	(void)samples;
@@ -111,6 +125,12 @@ EFI_STATUS EFIAPI speech_driver_test_entry(EFI_HANDLE app, EFI_SYSTEM_TABLE *tab
 		goto unload;
 	}
 
+	if (speech->synthesize(speech, "\001" "Vgmw/en", record, NULL) != EFI_INVALID_PARAMETER ||
+	    speech->synthesize(speech, "\xc0\x81" "Vgmw/en", record, NULL) != EFI_INVALID_PARAMETER) {
+		status = EFI_DEVICE_ERROR;
+		goto unload;
+	}
+
 	char too_long[SPEECH_MAX_TEXT_BYTES + 2];
 	for (UINTN i = 0; i < sizeof(too_long) - 1; i++)
 		too_long[i] = 'x';
@@ -122,12 +142,29 @@ EFI_STATUS EFIAPI speech_driver_test_entry(EFI_HANDLE app, EFI_SYSTEM_TABLE *tab
 
 	const char text[] = "Boot option 42 is ready. The firmware version is 3.7.";
 	status = speech->synthesize(speech, text, interrupt, speech);
-	if (status != EFI_ABORTED)
-		goto unload;
-
-	status = speech->synthesize(speech, text, record, NULL);
-	if (status == EFI_SUCCESS && (sample_frames < 4800 || !heard_signal))
+	if (status != EFI_ABORTED) {
 		status = EFI_DEVICE_ERROR;
+		goto unload;
+	}
+
+	const char repeat[] = "Firmware boot options and diagnostics. ";
+	for (UINTN i = 0; i < SPEECH_MAX_TEXT_BYTES; i++)
+		too_long[i] = repeat[i % (sizeof(repeat) - 1)];
+	too_long[SPEECH_MAX_TEXT_BYTES] = 0;
+
+	UINTN total = 0;
+	status = speech->synthesize(speech, too_long, record_to_limit, &total);
+	if (status != EFI_BUFFER_TOO_SMALL || total != (UINTN)PCM_RATE * 30) {
+		status = EFI_DEVICE_ERROR;
+		goto unload;
+	}
+
+	status = speech->synthesize(speech, text, record_warning, NULL);
+	if (status != EFI_WARN_UNKNOWN_GLYPH || sample_frames < 4800 || !heard_signal) {
+		status = EFI_DEVICE_ERROR;
+		goto unload;
+	}
+	status = EFI_SUCCESS;
 
 unload:
 	if (boot_services->UnloadImage(driver) != EFI_SUCCESS)

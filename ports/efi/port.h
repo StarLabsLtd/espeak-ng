@@ -13,7 +13,7 @@ typedef EFI_STATUS EFIAPI pcm_sink_fn(void *context, const INT16 *samples, UINTN
 extern EFI_BOOT_SERVICES *boot_services;
 extern EFI_SYSTEM_TABLE *system_table;
 
-bool load_voice_data(void);
+EFI_STATUS load_voice_data(void);
 void release_voice_data(void);
 const unsigned char *voice_file_data(const char *path, size_t *size);
 void console_write(const char *str);

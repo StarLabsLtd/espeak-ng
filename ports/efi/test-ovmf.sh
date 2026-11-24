@@ -8,6 +8,11 @@ text=${3:-Boot option 42 is ready. The firmware version is 3.7.}
 ovmf=${OVMF_DIRECTORY:-/usr/share/OVMF}
 mkdir -p "$out"
 out=$(realpath "$out")
+script=$(realpath "$0")
+if [ -n "${DRIVER_EFI:-}" ]; then
+	driver=$(realpath "$DRIVER_EFI")
+fi
+cd "$out"
 image="$out/speech.img"
 
 truncate -s 32M "$image"
@@ -18,13 +23,14 @@ printf '%s' "$text" > "$out/TEXT.TXT"
 mcopy -i "$image" "$out/TEXT.TXT" ::/TEXT.TXT
 expected='Speech prototype returned 0'
 if [ -n "${DRIVER_EFI:-}" ]; then
-	mcopy -i "$image" "$DRIVER_EFI" ::/DRIVER.EFI
+	mcopy -i "$image" "$driver" ::/DRIVER.EFI
 	expected='Speech driver test passed'
 fi
 
 cp "$ovmf/OVMF_VARS_4M.fd" "$out/OVMF_VARS.fd"
+: > "$out/serial.log"
 qemu-system-x86_64 -machine q35 -m 256 -nic none -display none \
-	-serial "file:$out/serial.log" -monitor none -qmp "unix:$out/qmp.sock,server=on,wait=off" \
+	-serial "file:$out/serial.log" -monitor none -qmp "unix:qmp.sock,server=on,wait=off" \
 	-drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE_4M.fd" \
 	-drive "if=pflash,format=raw,file=$out/OVMF_VARS.fd" \
 	-drive "if=virtio,format=raw,file=$image" > "$out/qemu.log" 2>&1 &
@@ -41,7 +47,7 @@ while ! rg -Fq "$expected" "$out/serial.log" 2>/dev/null; do
 	sleep 0.25
 done
 
-python3 - "$out/qmp.sock" <<'PY'
+python3 - qmp.sock <<'PY'
 import json
 import socket
 import sys
@@ -75,7 +81,6 @@ import sys
 import wave
 
 out = Path(sys.argv[1])
-digests = []
 for name in ("FIXED.WAV", "DYNAMIC.WAV"):
     with wave.open(str(out / name)) as pcm:
         frames = pcm.getnframes()
@@ -92,6 +97,14 @@ for name in ("FIXED.WAV", "DYNAMIC.WAV"):
     assert peak > 64
     digest = sha256(data).hexdigest()
     print(f"{name}: {frames} frames, peak {peak}, SHA-256 {digest}")
-    digests.append(digest)
-assert digests[0] != digests[1]
 PY
+
+if [ "$#" -lt 3 ]; then
+	"$script" "$app" "$out/alternate" \
+		'Power on. Open the café USB recovery entry. Press F twelve.'
+	cmp "$out/FIXED.WAV" "$out/alternate/FIXED.WAV"
+	if cmp -s "$out/DYNAMIC.WAV" "$out/alternate/DYNAMIC.WAV"; then
+		printf '%s\n' 'Synthesis did not distinguish the runtime inputs' >&2
+		exit 1
+	fi
+fi

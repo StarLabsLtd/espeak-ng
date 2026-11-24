@@ -71,9 +71,11 @@ static EFI_STATUS synthesize(EFI_FILE_PROTOCOL *root, CHAR16 *name, const char *
 	written_frames = 0;
 	EFI_STATUS status = root->Open(root, &output, name,
 		EFI_FILE_MODE_WRITE | EFI_FILE_MODE_READ, 0);
-	if (status == EFI_SUCCESS)
+	if (status == EFI_SUCCESS) {
 		status = output->Delete(output);
-	else if (status == EFI_NOT_FOUND)
+		if (status == EFI_WARN_DELETE_FAILURE)
+			status = EFI_DEVICE_ERROR;
+	} else if (status == EFI_NOT_FOUND)
 		status = EFI_SUCCESS;
 	if (status != EFI_SUCCESS)
 		return status;

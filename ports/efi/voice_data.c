@@ -32,10 +32,10 @@ static void decoder_free(void *allocator, void *memory)
 }
 #endif
 
-bool load_voice_data(void)
+EFI_STATUS load_voice_data(void)
 {
 	if (data)
-		return true;
+		return EFI_SUCCESS;
 
 #if COMPRESS_VOICE
 	const size_t header_size = 13;
@@ -45,11 +45,11 @@ bool load_voice_data(void)
 	struct ISzAlloc allocator = { decoder_alloc, decoder_free };
 
 	if (archive_size <= header_size)
-		return false;
+		return EFI_LOAD_ERROR;
 	size_t source_size = archive_size - header_size;
 	unsigned char *buffer = malloc(destination_size);
 	if (!buffer)
-		return false;
+		return EFI_OUT_OF_RESOURCES;
 
 	SRes result = LzmaDecode(buffer, &destination_size,
 		voice_archive_start + header_size, &source_size,
@@ -58,14 +58,14 @@ bool load_voice_data(void)
 	if (result != SZ_OK || end != LZMA_STATUS_FINISHED_WITH_MARK ||
 	    destination_size != VOICE_DATA_BYTES) {
 		free(buffer);
-		return false;
+		return result == SZ_ERROR_MEM ? EFI_OUT_OF_RESOURCES : EFI_LOAD_ERROR;
 	}
 	data = buffer;
 #else
 	data = voice_archive_start;
 #endif
 
-	return true;
+	return EFI_SUCCESS;
 }
 
 void release_voice_data(void)
