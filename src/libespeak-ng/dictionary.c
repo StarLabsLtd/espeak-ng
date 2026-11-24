@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,6 +221,8 @@ int LoadDictionary(Translator *tr, const char *name, int no_error)
 	}
 
 	f = fopen(fname, "rb");
+	if (f == NULL && size > 0 && errno == ENOMEM)
+		return 3;
 	if ((f == NULL) || (size <= 0)) {
 		if (no_error == 0)
 			fprintf(stderr, "Can't read dictionary file: '%s'\n", fname);

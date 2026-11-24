@@ -414,6 +414,7 @@ voice_t *LoadVoice(const char *vname, int control)
 	int value;
 	int langix = 0;
 	int tone_only = control & 2;
+	bool full_path = control & 0x10;
 	bool language_set = false;
 	bool phonemes_set = false;
 
@@ -447,7 +448,7 @@ voice_t *LoadVoice(const char *vname, int control)
 	}
 
 	strncpy0(voicename, vname, sizeof(voicename));
-	if (control & 0x10) {
+	if (full_path) {
 		strcpy(buf, vname);
 		if (GetFileLength(buf) <= 0)
 			return NULL;
@@ -473,7 +474,7 @@ voice_t *LoadVoice(const char *vname, int control)
             language_type = "";
 
 	if (f_voice == NULL) {
-		if (control & 3)
+		if (full_path || (control & 3))
 			return NULL; // can't open file
 
 		if (SelectPhonemeTableName(voicename) >= 0)
@@ -555,6 +556,10 @@ voice_t *LoadVoice(const char *vname, int control)
                     SelectPhonemeTableName(phonemes_name);
 
                     translator = SelectTranslator(translator_name);
+                    if (translator == NULL) {
+                        fclose(f_voice);
+                        return NULL;
+                    }
                     strncpy0(voice->language_name, language_name, sizeof(voice->language_name));
                 }
             }
@@ -702,6 +707,8 @@ voice_t *LoadVoice(const char *vname, int control)
 	if ((translator == NULL) && (!tone_only)) {
 		// not set by language attribute
 		translator = SelectTranslator(translator_name);
+		if (translator == NULL)
+			return NULL;
 	}
 
 	if (!tone_only) {
@@ -722,9 +729,10 @@ voice_t *LoadVoice(const char *vname, int control)
 		translator->phoneme_tab_ix = ix;
 
 		if (!(control & 8/*compiling phonemes*/)) {
-			LoadDictionary(translator, new_dictionary, control & 4);
-			if (dictionary_name[0] == 0) {
+			int result = LoadDictionary(translator, new_dictionary, control & 4);
+			if ((full_path && result != 0) || result == 3 || dictionary_name[0] == 0) {
 				DeleteTranslator(translator);
+				translator = NULL;
 				return NULL; // no dictionary loaded
 			}
 		}
@@ -1268,7 +1276,9 @@ ESPEAK_NG_API espeak_ng_STATUS espeak_ng_SetVoiceByFile(const char *filename)
 		if (variant_name[0] != 0)
 			LoadVoice(variant_name, 2);
 
-		DoVoiceChange(voice);
+		espeak_ng_STATUS result = DoVoiceChange(voice);
+		if (result != ENS_OK)
+			return result;
 		voice_selector.languages = voice->language_name;
 		SetVoiceStack(&voice_selector, variant_name);
 		return ENS_OK;

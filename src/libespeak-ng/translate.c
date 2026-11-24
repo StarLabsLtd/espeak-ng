@@ -274,6 +274,10 @@ static int SetAlternateTranslator(const char *new_language, Translator **transla
 
 		if (*translator == NULL) {
 			*translator = SelectTranslator(new_language);
+			if (*translator == NULL) {
+				SelectPhonemeTable(voice->phoneme_tab_ix);
+				return -1;
+			}
 			strcpy(translator_language, new_language);
 
 			if (LoadDictionary(*translator, (*translator)->dictionary_name, 0) != 0) {
