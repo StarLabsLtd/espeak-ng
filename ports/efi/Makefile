@@ -107,7 +107,7 @@ $(BUILD)/pe-exec-sections: $(EDIIE)/util/pe_exec_sections.c
 
 $(BUILD)/pe_relocation_marker.o: $(EDIIE)/src/lib/pe_relocation_marker.c
 	@mkdir -p "$(@D)"
-	$(CC) $(efi_flags) -I$(EDIIE)/include -c "$<" -o "$@"
+	$(CC) $(efi_flags) -I$(EDIIE)/include -MMD -MP -c "$<" -o "$@"
 
 $(BUILD)/speech-thin.o: $(BUILD)/main.o $(efi_objects)
 	$(LD) -r --gc-sections -u efi_main -o "$@" $^
@@ -148,4 +148,5 @@ $(BUILD)/Speech.efi $(BUILD)/SpeechDxe.efi $(BUILD)/SpeechDriverTest.efi: $(BUIL
 		-o "$@" "$(input)"
 
 READELF ?= readelf
--include $(efi_objects:.o=.d) $(BUILD)/main.d $(BUILD)/driver.d $(BUILD)/driver-test.d
+-include $(efi_objects:.o=.d) $(BUILD)/main.d $(BUILD)/driver.d $(BUILD)/driver-test.d \
+	$(BUILD)/pe_relocation_marker.d
