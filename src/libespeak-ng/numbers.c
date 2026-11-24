@@ -503,8 +503,8 @@ void LookupLetter(Translator *tr, unsigned int letter, int next_byte, char *ph_b
 		if (tr->translator_name == L('e', 'n'))
 			return; // we are already using English
 
-		SetTranslator3(ESPEAKNG_DEFAULT_VOICE);
-		if (Lookup(translator3, &single_letter[2], ph_buf3) != 0) {
+		if (SetTranslator3(ESPEAKNG_DEFAULT_VOICE) >= 0 &&
+		    Lookup(translator3, &single_letter[2], ph_buf3) != 0) {
 			// yes, switch to English and re-translate the word
 			sprintf(ph_buf1, "%c", phonSWITCH);
 		}

@@ -233,19 +233,22 @@ static const char *LookupCharName(char buf[60], Translator *tr, int c, bool only
 		}
 		
 		if (((phonemes[0] == 0) || (phonemes[0] == phonSWITCH)) && (tr->translator_name != L('e', 'n'))) {
-    		// not found, try English
-    		SetTranslator2(ESPEAKNG_DEFAULT_VOICE);
-    		string = &single_letter[1];
-    		single_letter[1] = '_';
-    		if (LookupDictList(translator2, &string, phonemes, flags, 0, NULL) == 0) {
-    			string = &single_letter[2];
-    			LookupDictList(translator2, &string, phonemes, flags, 0, NULL);
-    		}
-    		if (phonemes[0])
-    			lang_name = ESPEAKNG_DEFAULT_VOICE;
-    		else
-    			SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
-    	}
+			// not found, try English
+			if (SetTranslator2(ESPEAKNG_DEFAULT_VOICE) >= 0) {
+				string = &single_letter[1];
+				single_letter[1] = '_';
+				if (LookupDictList(translator2, &string, phonemes, flags, 0, NULL) == 0) {
+					string = &single_letter[2];
+					LookupDictList(translator2, &string, phonemes, flags, 0, NULL);
+				}
+				if (phonemes[0])
+					lang_name = ESPEAKNG_DEFAULT_VOICE;
+				else
+					SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
+			} else {
+				phonemes[0] = 0;
+			}
+		}
 	}
 
 	if (phonemes[0]) {

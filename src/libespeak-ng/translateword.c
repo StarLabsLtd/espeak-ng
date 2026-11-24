@@ -835,9 +835,12 @@ static int TranslateLetter(Translator *tr, char *word, char *phonemes, int contr
 				// don't say "superscript" during normal text reading
 				Lookup(tr, modifier, capital);
 				if (capital[0] == 0) {
-					capital[2] = SetTranslator3(ESPEAKNG_DEFAULT_VOICE); // overwrites previous contents of translator3
-					Lookup(translator3, modifier, &capital[3]);
+					int table = SetTranslator3(ESPEAKNG_DEFAULT_VOICE);
+					capital[3] = 0;
+					if (table >= 0)
+						Lookup(translator3, modifier, &capital[3]);
 					if (capital[3] != 0) {
+						capital[2] = table;
 						capital[0] = phonPAUSE;
 						capital[1] = phonSWITCH;
 						len = strlen(&capital[3]);
@@ -879,8 +882,11 @@ static int TranslateLetter(Translator *tr, char *word, char *phonemes, int contr
 				ph_buf2[0] = 0;
 				if (Lookup(translator, alphabet->name, ph_alphabet) == 0) { // the original language for the current voice
 					// Can't find the local name for this alphabet, use the English name
-					ph_alphabet[2] = SetTranslator3(ESPEAKNG_DEFAULT_VOICE); // overwrites previous contents of translator3
-					Lookup(translator3, alphabet->name, ph_buf2);
+					int table = SetTranslator3(ESPEAKNG_DEFAULT_VOICE);
+					if (table >= 0) {
+						ph_alphabet[2] = table;
+						Lookup(translator3, alphabet->name, ph_buf2);
+					}
 				} else if (translator != tr) {
 					phontab_1 = tr->phoneme_tab_ix;
 					strcpy(ph_buf2, ph_alphabet);
@@ -919,9 +925,10 @@ static int TranslateLetter(Translator *tr, char *word, char *phonemes, int contr
 
 			// speak in the language for this alphabet (or English)
 			char word_buf[5];
-			ph_buf[2] = SetTranslator3(WordToString2(word_buf, language));
+			int table = SetTranslator3(WordToString2(word_buf, language));
 
-			if (translator3 != NULL) {
+			if (table >= 0) {
+				ph_buf[2] = table;
 				int code;
 				if (((code = letter - 0xac00) >= 0) && (letter <= 0xd7af)) {
 					// Special case for Korean letters.
@@ -945,8 +952,13 @@ static int TranslateLetter(Translator *tr, char *word, char *phonemes, int contr
 
 				if (ph_buf[3] == phonSWITCH) {
 					// another level of language change
-					ph_buf[2] = SetTranslator3(&ph_buf[4]);
-					LookupLetter(translator3, letter, word[n_bytes], &ph_buf[3], control & 1);
+					table = SetTranslator3(&ph_buf[4]);
+					if (table >= 0) {
+						ph_buf[2] = table;
+						LookupLetter(translator3, letter, word[n_bytes], &ph_buf[3], control & 1);
+					} else {
+						ph_buf[3] = 0;
+					}
 				}
 
 				SelectPhonemeTable(voice->phoneme_tab_ix); // revert to original phoneme table
