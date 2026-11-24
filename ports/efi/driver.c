@@ -39,7 +39,7 @@ static EFI_STATUS EFIAPI unload(EFI_HANDLE image)
 
 EFI_STATUS EFIAPI speech_driver_entry(EFI_HANDLE image, EFI_SYSTEM_TABLE *table)
 {
-	system_table = table;
+	/* The graphical caller owns its console while speech is active. */
 	boot_services = table->BootServices;
 
 	EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
