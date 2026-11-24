@@ -93,7 +93,7 @@ $(BUILD)/%.o: $(PORT)/%.c $(PORT)/Makefile
 	$(CC) $(efi_includes) $(efi_flags) -I$(BUILD) -DCOMPRESS_VOICE=$(COMPRESS) \
 		-Wall -Wextra -Werror -MMD -MP -c "$<" -o "$@"
 
-$(BUILD)/LzmaDec.o: $(LZMA)/LzmaDec.c
+$(BUILD)/LzmaDec.o: $(LZMA)/LzmaDec.c $(PORT)/Makefile
 	@mkdir -p "$(@D)"
 	$(CC) $(efi_includes) $(efi_flags) -MMD -MP -c "$<" -o "$@"
 
@@ -105,7 +105,7 @@ $(BUILD)/pe-exec-sections: $(EDIIE)/util/pe_exec_sections.c
 	@mkdir -p "$(@D)"
 	$(HOSTCC) -std=c11 -O2 -Wall -Wextra -Werror "$<" -o "$@"
 
-$(BUILD)/pe_relocation_marker.o: $(EDIIE)/src/lib/pe_relocation_marker.c
+$(BUILD)/pe_relocation_marker.o: $(EDIIE)/src/lib/pe_relocation_marker.c $(PORT)/Makefile
 	@mkdir -p "$(@D)"
 	$(CC) $(efi_flags) -I$(EDIIE)/include -MMD -MP -c "$<" -o "$@"
 
