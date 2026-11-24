@@ -35,7 +35,8 @@ efi_objects += $(BUILD)/LzmaDec.o
 endif
 voice_names := en_dict phondata phonindex phontab intonations lang/gmw/en lang/gmw/en-US
 voice_files := $(addprefix $(VOICE_DATA)/,$(voice_names))
-voice_sources := $(wildcard $(ESPEAK)/dictsource/en_*) \
+dictionary_sources := $(wildcard $(ESPEAK)/dictsource/en_*)
+voice_sources := $(dictionary_sources) \
 	$(ESPEAK)/espeak-ng-data/lang/gmw/en $(ESPEAK)/espeak-ng-data/lang/gmw/en-US \
 	$(shell find "$(ESPEAK)/phsource" -type f ! -name compile_prog_log)
 
@@ -60,6 +61,7 @@ $(BUILD)/host/espeak-ng: $(ESPEAK)/src/espeak-ng.c $(PORT)/config.h $(PORT)/Make
 	$(HOSTCC) $(includes) -I$(ESPEAK)/src/libespeak-ng -D_GNU_SOURCE -O2 -fwrapv \
 		"$<" $(filter %.c,$(wordlist 2,999,$^)) -lm -o "$@"
 
+# eSpeak holds its data path in a fixed-size buffer. Run its tools from the staging directory.
 $(BUILD)/data/en_dict $(BUILD)/data/phondata $(BUILD)/data/phonindex \
 $(BUILD)/data/phontab $(BUILD)/data/intonations $(BUILD)/data/lang/gmw/en \
 $(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng $(voice_sources)
@@ -70,10 +72,12 @@ $(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng $(voice_sources)
 	cp -a "$(ESPEAK)/phsource" "$$work/"; \
 	cp "$(ESPEAK)/espeak-ng-data/lang/gmw/en" "$(ESPEAK)/espeak-ng-data/lang/gmw/en-US" \
 		"$$work/data/lang/gmw/"; \
-	ESPEAK_DATA_PATH="$$work/data" "$(BUILD)/host/espeak-ng" --compile-intonations; \
-	ESPEAK_DATA_PATH="$$work/data" "$(BUILD)/host/espeak-ng" --compile-phonemes; \
-	(cd "$(ESPEAK)/dictsource" && ESPEAK_DATA_PATH="$$work/data" \
-		"$(abspath $(BUILD))/host/espeak-ng" --compile=en); \
+	cp $(foreach source,$(dictionary_sources),"$(source)") "$$work/"; \
+	(cd "$$work"; \
+		host="$(abspath $(BUILD))/host/espeak-ng"; \
+		"$$host" --path=data --compile-intonations; \
+		"$$host" --path=data --compile-phonemes; \
+		"$$host" --path=data --compile=en); \
 	mkdir -p "$(BUILD)/data"; \
 	cp -a "$$work/data/." "$(BUILD)/data/"
 
