@@ -28,16 +28,17 @@ efi_flags := -std=gnu11 -Os -D_GNU_SOURCE -D__NO_CTYPE=1 -D_GNU_EFI -DGNU_EFI_US
 	-D_FORTIFY_SOURCE=0 -fdata-sections -ffunction-sections -fwrapv
 efi_objects := $(addprefix $(BUILD)/engine/,$(addsuffix .o,$(efi_names))) \
 	$(addprefix $(BUILD)/ucd/,$(addsuffix .o,$(ucd_names))) \
-	$(addprefix $(BUILD)/,main.o runtime.o voice_data.o archive.o)
+	$(addprefix $(BUILD)/,engine.o platform.o runtime.o voice_data.o archive.o)
 ifeq ($(COMPRESS),1)
 efi_objects += $(BUILD)/LzmaDec.o
 endif
 voice_names := en_dict phondata phonindex phontab intonations lang/gmw/en lang/gmw/en-US
 voice_files := $(addprefix $(VOICE_DATA)/,$(voice_names))
 
-.PHONY: all objects
+.PHONY: all speech-driver driver-test
 all: $(BUILD)/$(PE_NAME)
-objects: $(filter-out $(BUILD)/archive.o $(BUILD)/main.o $(BUILD)/runtime.o $(BUILD)/math.o $(BUILD)/voice_data.o,$(efi_objects))
+speech-driver: $(BUILD)/SpeechDxe.efi
+driver-test: $(BUILD)/SpeechDriverTest.efi $(BUILD)/SpeechDxe.efi
 
 $(BUILD)/engine/%.o: $(ESPEAK)/src/libespeak-ng/%.c $(PORT)/config.h $(PORT)/Makefile
 	@mkdir -p "$(@D)"
@@ -72,7 +73,8 @@ $(BUILD)/archive.o: $(BUILD)/archive.S
 	$(CC) $(efi_flags) -c "$<" -o "$@"
 
 $(BUILD)/voice_data.o: $(BUILD)/voice_files.h
-$(BUILD)/main.o: efi_flags += -fshort-wchar
+$(BUILD)/main.o $(BUILD)/platform.o $(BUILD)/driver.o $(BUILD)/driver-test.o: efi_flags += -fshort-wchar
+$(BUILD)/driver.o $(BUILD)/driver-test.o: efi_includes += -I$(EDIIE)/include
 $(BUILD)/%.o: $(PORT)/%.c $(PORT)/Makefile
 	@mkdir -p "$(@D)"
 	$(CC) $(efi_includes) $(efi_flags) -I$(BUILD) -DCOMPRESS_VOICE=$(COMPRESS) \
@@ -94,20 +96,43 @@ $(BUILD)/pe_relocation_marker.o: $(EDIIE)/src/lib/pe_relocation_marker.c
 	@mkdir -p "$(@D)"
 	$(CC) $(efi_flags) -I$(EDIIE)/include -c "$<" -o "$@"
 
-$(BUILD)/speech-thin.o: $(efi_objects)
+$(BUILD)/speech-thin.o: $(BUILD)/main.o $(efi_objects)
 	$(LD) -r --gc-sections -u efi_main -o "$@" $^
 
 $(BUILD)/speech.o: $(BUILD)/speech-thin.o $(MUSL)
 	$(LD) -r --gc-sections -u efi_main -o "$@" $^
 
-$(BUILD)/$(PE_NAME): $(BUILD)/speech.o $(BUILD)/native-pe-link $(BUILD)/pe-exec-sections \
+$(BUILD)/speech-driver-thin.o: $(BUILD)/driver.o $(efi_objects)
+	$(LD) -r --gc-sections -u speech_driver_entry -o "$@" $^
+
+$(BUILD)/speech-driver.o: $(BUILD)/speech-driver-thin.o $(MUSL)
+	$(LD) -r --gc-sections -u speech_driver_entry -o "$@" $^
+
+$(BUILD)/speech-driver-test.o: $(BUILD)/driver-test.o $(BUILD)/platform.o
+	$(LD) -r --gc-sections -u speech_driver_test_entry -o "$@" $^
+
+$(BUILD)/$(PE_NAME): entry := efi_main
+$(BUILD)/$(PE_NAME): subsystem := 10
+$(BUILD)/$(PE_NAME): input := $(BUILD)/speech.o
+$(BUILD)/$(PE_NAME): $(BUILD)/speech.o
+$(BUILD)/SpeechDxe.efi: entry := speech_driver_entry
+$(BUILD)/SpeechDxe.efi: subsystem := 11
+$(BUILD)/SpeechDxe.efi: input := $(BUILD)/speech-driver.o
+$(BUILD)/SpeechDxe.efi: $(BUILD)/speech-driver.o
+
+$(BUILD)/SpeechDriverTest.efi: entry := speech_driver_test_entry
+$(BUILD)/SpeechDriverTest.efi: subsystem := 10
+$(BUILD)/SpeechDriverTest.efi: input := $(BUILD)/speech-driver-test.o
+$(BUILD)/SpeechDriverTest.efi: $(BUILD)/speech-driver-test.o
+
+$(BUILD)/$(PE_NAME) $(BUILD)/SpeechDxe.efi $(BUILD)/SpeechDriverTest.efi: $(BUILD)/native-pe-link $(BUILD)/pe-exec-sections \
 	$(BUILD)/pe_relocation_marker.o $(EDIIE)/src/boot/native_module.ld
 	"$(BUILD)/native-pe-link" "$(LD)" "$(BUILD)/pe-exec-sections" \
 		"$(BUILD)/pe_relocation_marker.o" "$(READELF)" \
-		--subsystem 10 --entry efi_main --image-base 0 \
+		--subsystem $(subsystem) --entry $(entry) --image-base 0 \
 		--section-alignment 0x1000 --file-alignment 0x200 --build-id=none \
 		--no-insert-timestamp -s --nxcompat -T "$(EDIIE)/src/boot/native_module.ld" \
-		-o "$@" "$<"
+		-o "$@" "$(input)"
 
 READELF ?= readelf
--include $(efi_objects:.o=.d)
+-include $(efi_objects:.o=.d) $(BUILD)/main.d $(BUILD)/driver.d $(BUILD)/driver-test.d

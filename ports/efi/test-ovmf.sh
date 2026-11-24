@@ -16,6 +16,11 @@ mmd -i "$image" ::/EFI ::/EFI/BOOT
 mcopy -i "$image" "$app" ::/EFI/BOOT/BOOTX64.EFI
 printf '%s' "$text" > "$out/TEXT.TXT"
 mcopy -i "$image" "$out/TEXT.TXT" ::/TEXT.TXT
+expected='Speech prototype returned 0'
+if [ -n "${DRIVER_EFI:-}" ]; then
+	mcopy -i "$image" "$DRIVER_EFI" ::/DRIVER.EFI
+	expected='Speech driver test passed'
+fi
 
 cp "$ovmf/OVMF_VARS_4M.fd" "$out/OVMF_VARS.fd"
 qemu-system-x86_64 -machine q35 -m 256 -nic none -display none \
@@ -26,7 +31,7 @@ qemu-system-x86_64 -machine q35 -m 256 -nic none -display none \
 qemu=$!
 trap 'kill "$qemu" 2>/dev/null || :; wait "$qemu" || :' EXIT HUP INT TERM
 attempt=0
-while ! grep -q "\bSpeech prototype returned 0\b" "$out/serial.log" 2>/dev/null; do
+while ! rg -Fq "$expected" "$out/serial.log" 2>/dev/null; do
 	if ! kill -0 "$qemu" 2>/dev/null || [ "$attempt" -ge 60 ]; then
 		cat "$out/qemu.log"
 		test ! -f "$out/serial.log" || cat "$out/serial.log"
@@ -56,6 +61,10 @@ with socket.socket(socket.AF_UNIX) as conn:
 PY
 wait "$qemu"
 trap - EXIT HUP INT TERM
+if [ -n "${DRIVER_EFI:-}" ]; then
+	printf '%s\n' "$expected"
+	exit 0
+fi
 
 mcopy -o -i "$image" ::/FIXED.WAV ::/DYNAMIC.WAV "$out/"
 python3 - "$out" <<'PY'

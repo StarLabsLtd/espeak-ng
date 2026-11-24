@@ -30,9 +30,12 @@ union allocation {
 	struct {
 		void *buffer;
 		size_t size;
+		union allocation *next;
+		union allocation *previous;
 	} info;
 	max_align_t align;
 };
+static union allocation *allocations;
 
 void *malloc(size_t size)
 {
@@ -40,7 +43,7 @@ void *malloc(size_t size)
 	const size_t overhead = sizeof(union allocation) + alignment - 1;
 	void *buffer;
 	if (size > SIZE_MAX - overhead ||
-	    EFI_ERROR(boot_services->AllocatePool(EfiLoaderData, size + overhead, &buffer))) {
+	    EFI_ERROR(boot_services->AllocatePool(EfiBootServicesData, size + overhead, &buffer))) {
 		errno = ENOMEM;
 		return NULL;
 	}
@@ -48,6 +51,11 @@ void *malloc(size_t size)
 	union allocation *allocation = (void *)aligned;
 	allocation->info.buffer = buffer;
 	allocation->info.size = size;
+	allocation->info.previous = NULL;
+	allocation->info.next = allocations;
+	if (allocations)
+		allocations->info.previous = allocation;
+	allocations = allocation;
 	return allocation + 1;
 }
 
@@ -55,8 +63,20 @@ void free(void *pointer)
 {
 	if (pointer) {
 		union allocation *allocation = (union allocation *)pointer - 1;
+		if (allocation->info.previous)
+			allocation->info.previous->info.next = allocation->info.next;
+		else
+			allocations = allocation->info.next;
+		if (allocation->info.next)
+			allocation->info.next->info.previous = allocation->info.previous;
 		boot_services->FreePool(allocation->info.buffer);
 	}
+}
+
+void release_speech_allocations(void)
+{
+	while (allocations)
+		free(allocations + 1);
 }
 
 void *calloc(size_t count, size_t size)

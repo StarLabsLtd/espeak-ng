@@ -84,11 +84,38 @@ left and right samples, and a distinct digest for each utterance. The fixed
 utterance should match across both boots, while the runtime utterances
 should differ.
 
+## edIIe boot-services driver
+
+Point `EDIIE` at the integration checkout containing the shared
+`include/ediie/speech.h` protocol declaration. Build the separate EFI driver
+and its OVMF protocol test:
+
+```sh
+make -f ports/efi/Makefile -j8 driver-test \
+	EDIIE=/path/to/ediie-integration LZMA=/path/to/coreboot/util/cbfstool/lzma/C
+DRIVER_EFI=../build/SpeechDxe.efi \
+	ports/efi/test-ovmf.sh ../build/SpeechDriverTest.efi ../test-driver
+```
+
+Use `speech-driver` in place of `driver-test` to build the driver alone.
+The driver installs the speech protocol on its image handle. The first
+accepted request initializes the engine and expands the English archive.
+Later requests reuse that state until the driver unloads, where it removes
+the protocol and releases its allocations. The allocations use boot-services
+memory, which the OS can reclaim after ExitBootServices.
+
+The driver rejects a second synthesis request while a call is active. It
+emits up to 1,024 PCM frames per callback and stops on any sink error,
+returning that status to the caller. Requests are limited to the
+`SPEECH_MAX_TEXT_BYTES` stated in the shared protocol and to 30 seconds of PCM.
+A call that reaches the output limit returns `EFI_BAD_BUFFER_SIZE` even if
+the sink already received fragments.
+
 ## Size
 
 The English inputs total 827,621 bytes before compression and 379,796
-bytes as an LZMA archive. The compressed-archive PE is 790,528 bytes.
-Copying the existing Lite board ROM and adding the PE as a standalone raw
+bytes as an LZMA archive. The initial compressed-archive application PE
+was 790,528 bytes. Copying the existing Lite board ROM and adding the PE as a standalone raw
 CBFS file consumed 508,160 bytes with CBFS LZMA or 790,592 bytes without it.
 These are free-space changes from `cbfstool print`, including alignment and
 record overhead. The experiment did not embed the application in edIIe's
