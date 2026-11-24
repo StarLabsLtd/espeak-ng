@@ -64,7 +64,7 @@ $(BUILD)/data/en_dict $(BUILD)/data/phondata $(BUILD)/data/phonindex \
 $(BUILD)/data/phontab $(BUILD)/data/intonations $(BUILD)/data/lang/gmw/en \
 $(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng $(voice_sources)
 	@set -eu; \
-	work=$$(mktemp -d "$(BUILD)/voice-gen.XXXXXX"); \
+	work=$$(mktemp -d "$(abspath $(BUILD))/voice-gen.XXXXXX"); \
 	trap 'rm -rf "$$work"' EXIT; \
 	mkdir -p "$$work/data/lang/gmw"; \
 	cp -a "$(ESPEAK)/phsource" "$$work/"; \
@@ -73,7 +73,7 @@ $(BUILD)/data/lang/gmw/en-US &: $(BUILD)/host/espeak-ng $(voice_sources)
 	ESPEAK_DATA_PATH="$$work/data" "$(BUILD)/host/espeak-ng" --compile-intonations; \
 	ESPEAK_DATA_PATH="$$work/data" "$(BUILD)/host/espeak-ng" --compile-phonemes; \
 	(cd "$(ESPEAK)/dictsource" && ESPEAK_DATA_PATH="$$work/data" \
-		"$(BUILD)/host/espeak-ng" --compile=en); \
+		"$(abspath $(BUILD))/host/espeak-ng" --compile=en); \
 	mkdir -p "$(BUILD)/data"; \
 	cp -a "$$work/data/." "$(BUILD)/data/"
 
@@ -95,7 +95,7 @@ $(BUILD)/%.o: $(PORT)/%.c $(PORT)/Makefile
 
 $(BUILD)/LzmaDec.o: $(LZMA)/LzmaDec.c
 	@mkdir -p "$(@D)"
-	$(CC) $(efi_includes) $(efi_flags) -c "$<" -o "$@"
+	$(CC) $(efi_includes) $(efi_flags) -MMD -MP -c "$<" -o "$@"
 
 $(BUILD)/native-pe-link: $(EDIIE)/util/native_pe_link.c
 	@mkdir -p "$(@D)"

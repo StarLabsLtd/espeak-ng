@@ -37,7 +37,7 @@ qemu-system-x86_64 -machine q35 -m 256 -nic none -display none \
 qemu=$!
 trap 'kill "$qemu" 2>/dev/null || :; wait "$qemu" || :' EXIT HUP INT TERM
 attempt=0
-while ! rg -Fq "$expected" "$out/serial.log" 2>/dev/null; do
+while ! grep -Fq "$expected" "$out/serial.log" 2>/dev/null; do
 	if ! kill -0 "$qemu" 2>/dev/null || [ "$attempt" -ge 60 ]; then
 		cat "$out/qemu.log"
 		test ! -f "$out/serial.log" || cat "$out/serial.log"
